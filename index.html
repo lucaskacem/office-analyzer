@@ -195,8 +195,20 @@
                     <div class="filter-chip" onclick="filterOffices('B')">Hạng B</div>
                     <div class="filter-chip" onclick="filterOffices('C')">Hạng C</div>
                 </div>
+                <div class="filter-bar" style="margin-top:8px;">
+                    <div class="filter-chip active" onclick="filterByPrice('all')" data-i18n="allPrices">Tất cả giá</div>
+                    <div class="filter-chip" onclick="filterByPrice('under100')">< 100M</div>
+                    <div class="filter-chip" onclick="filterByPrice('100to200')">100-200M</div>
+                    <div class="filter-chip" onclick="filterByPrice('over200')">> 200M</div>
+                </div>
                 <div id="office-list"></div>
                 <button class="add-office" onclick="openAddModal()" id="btn-add-office">+ Thêm văn phòng mới</button>
+                <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+                    <button class="add-office" onclick="document.getElementById('import-file').click()" style="flex:1;" id="btn-import">
+                        📥 Nhập dữ liệu
+                    </button>
+                    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importScrapedData(event)">
+                </div>
             </div>
         </div>
 
@@ -210,6 +222,7 @@
                             <th>#</th>
                             <th data-i18n="office">Văn phòng</th>
                             <th data-i18n="score">Điểm</th>
+                            <th data-i18n="price">Giá</th>
                             <th data-i18n="avgDist">KC TB</th>
                             <th>&lt;3km</th>
                             <th data-i18n="impact">Ảnh hưởng</th>
@@ -280,6 +293,26 @@
             <div class="form-group">
                 <label id="lbl-elevators">Thang máy</label>
                 <input type="number" id="new-elevators" placeholder="2">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label id="lbl-year">Năm xây dựng</label>
+                <input type="number" id="new-year" placeholder="2024">
+            </div>
+            <div class="form-group">
+                <label id="lbl-floors">Số tầng</label>
+                <input type="number" id="new-floors" placeholder="1">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label id="lbl-months-market">Thời gian đăng (tháng)</label>
+                <input type="number" id="new-months-market" placeholder="3">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:20px;">
+                <input type="checkbox" id="new-single-floor" style="width:auto;">
+                <label for="new-single-floor" id="lbl-single-floor" style="margin:0;cursor:pointer;">Một tầng</label>
             </div>
         </div>
         <p style="font-size:11px; color:#64748b; margin-top:8px;" id="modal-tip">Mẹo: Nhấp vào bản đồ để tự động điền tọa độ</p>
@@ -368,6 +401,25 @@ const translations = {
         fillRequired: "Vui lòng điền tên và tọa độ (nhấp vào bản đồ)",
         addressNotSpecified: "Địa chỉ chưa xác định",
         tooltipAvg: "KC TB",
+        price: "Giá",
+        priceRange: "Khoảng giá",
+        allPrices: "Tất cả giá",
+        under100m: "< 100M",
+        from100to200m: "100-200M",
+        over200m: "> 200M",
+        timeOnMarket: "Thời gian đăng",
+        monthsShort: "tháng",
+        newListing: "Mới đăng",
+        longListing: "Đã lâu",
+        singleFloorLabel: "Một tầng",
+        multiFloorLabel: "Nhiều tầng",
+        buildingAge: "Tuổi tòa nhà",
+        ageNew: "Mới",
+        ageOld: "Cũ",
+        importScraped: "Nhập dữ liệu",
+        importFromFile: "Nhập từ file",
+        scrapedSource: "Nguồn",
+        floorsLabel: "Số tầng",
     },
     fr: {
         title: "Analyse de Localisation de Bureau",
@@ -441,6 +493,25 @@ const translations = {
         fillRequired: "Veuillez remplir le nom et les coordonnées (cliquez sur la carte)",
         addressNotSpecified: "Adresse non spécifiée",
         tooltipAvg: "Dist. moy",
+        price: "Prix",
+        priceRange: "Fourchette de prix",
+        allPrices: "Tous les prix",
+        under100m: "< 100M",
+        from100to200m: "100-200M",
+        over200m: "> 200M",
+        timeOnMarket: "Temps en location",
+        monthsShort: "mois",
+        newListing: "Récent",
+        longListing: "Ancien",
+        singleFloorLabel: "Un seul étage",
+        multiFloorLabel: "Multi-étages",
+        buildingAge: "Âge du bâtiment",
+        ageNew: "Récent",
+        ageOld: "Ancien",
+        importScraped: "Importer données",
+        importFromFile: "Importer fichier",
+        scrapedSource: "Source",
+        floorsLabel: "Étages",
     }
 };
 
@@ -468,6 +539,11 @@ function setLang(lang) {
     document.getElementById('btn-cancel').textContent = t('btnCancel');
     document.getElementById('btn-add').textContent = t('btnAdd');
     document.getElementById('detail-placeholder').textContent = t('detailPlaceholder');
+    document.getElementById('lbl-year').textContent = t('yearBuilt');
+    document.getElementById('lbl-floors').textContent = t('floorsLabel');
+    document.getElementById('lbl-months-market').textContent = t('timeOnMarket');
+    document.getElementById('lbl-single-floor').textContent = t('singleFloorLabel');
+    document.getElementById('btn-import').textContent = '📥 ' + t('importScraped');
 
     // Update data-i18n elements
     document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -568,15 +644,15 @@ const employees = [
 ];
 
 let offices = [
-    {id:"current",name:"VP Hiện tại (96 Hồ Nghinh)",address:"96 Hồ Nghinh, An Hải, Sơn Trà",lat:16.0680,lng:108.2430,grade:"",isCurrent:true,price:null,area:null,elevators:null,year:null,custom:false},
-    {id:"nhumai",name:"NHƯ MAI BUILDING",address:"328 Trần Hưng Đạo",lat:16.0607904,lng:108.2303821,grade:"C",isCurrent:false,price:132000000,area:400,elevators:1,year:2022,custom:false},
-    {id:"x2",name:"X2 OFFICE",address:"666 Ngô Quyền",lat:16.0862718,lng:108.240397,grade:"C",isCurrent:false,price:40000000,area:205,elevators:1,year:2017,custom:false},
-    {id:"nicholas",name:"NICHOLAS OFFICE",address:"482 Nguyễn Hữu Thọ",lat:16.0191879,lng:108.2115565,grade:"B",isCurrent:false,price:200000000,area:800,elevators:2,year:null,custom:false},
-    {id:"vnpt",name:"VNPT 2/9",address:"344-346 đường 2/9",lat:16.042017,lng:108.2229055,grade:"B",isCurrent:false,price:128000000,area:470,elevators:2,year:2012,custom:false},
-    {id:"pdl125",name:"125 PHAN ĐĂNG LƯU",address:"125 Phan Đăng Lưu, Hải Châu",lat:16.0374486,lng:108.2196587,grade:"C",isCurrent:false,price:183040000,area:320,elevators:2,year:2024,custom:false},
-    {id:"div",name:"DIV (Bảo Hiểm Tiền Gửi)",address:"Lý Thánh Tông, Thanh Khê",lat:16.0585,lng:108.1970,grade:"B",isCurrent:false,price:102000000,area:600,elevators:4,year:2025,custom:false},
-    {id:"baold",name:"BÁO LAO ĐỘNG",address:"Xô Viết Nghệ Tĩnh",lat:16.0318891,lng:108.2140287,grade:"B",isCurrent:false,price:50336000,area:220,elevators:2,year:2025,custom:false},
-    {id:"shb",name:"SHB BUILDING",address:"06 Nguyễn Văn Linh, Hải Châu",lat:16.0613693,lng:108.2199779,grade:"B",isCurrent:false,price:205920000,area:600,elevators:2,year:null,custom:false}
+    {id:"current",name:"VP Hiện tại (96 Hồ Nghinh)",address:"96 Hồ Nghinh, An Hải, Sơn Trà",lat:16.0680,lng:108.2430,grade:"",isCurrent:true,price:null,area:null,elevators:null,year:null,monthsOnMarket:null,singleFloor:true,floorCount:1,custom:false},
+    {id:"nhumai",name:"NHƯ MAI BUILDING",address:"328 Trần Hưng Đạo",lat:16.0607904,lng:108.2303821,grade:"C",isCurrent:false,price:132000000,area:400,elevators:1,year:2022,monthsOnMarket:4,singleFloor:false,floorCount:2,custom:false},
+    {id:"x2",name:"X2 OFFICE",address:"666 Ngô Quyền",lat:16.0862718,lng:108.240397,grade:"C",isCurrent:false,price:40000000,area:205,elevators:1,year:2017,monthsOnMarket:8,singleFloor:true,floorCount:1,custom:false},
+    {id:"nicholas",name:"NICHOLAS OFFICE",address:"482 Nguyễn Hữu Thọ",lat:16.0191879,lng:108.2115565,grade:"B",isCurrent:false,price:200000000,area:800,elevators:2,year:null,monthsOnMarket:2,singleFloor:false,floorCount:3,custom:false},
+    {id:"vnpt",name:"VNPT 2/9",address:"344-346 đường 2/9",lat:16.042017,lng:108.2229055,grade:"B",isCurrent:false,price:128000000,area:470,elevators:2,year:2012,monthsOnMarket:12,singleFloor:false,floorCount:2,custom:false},
+    {id:"pdl125",name:"125 PHAN ĐĂNG LƯU",address:"125 Phan Đăng Lưu, Hải Châu",lat:16.0374486,lng:108.2196587,grade:"C",isCurrent:false,price:183040000,area:320,elevators:2,year:2024,monthsOnMarket:1,singleFloor:false,floorCount:2,custom:false},
+    {id:"div",name:"DIV (Bảo Hiểm Tiền Gửi)",address:"Lý Thánh Tông, Thanh Khê",lat:16.0585,lng:108.1970,grade:"B",isCurrent:false,price:102000000,area:600,elevators:4,year:2025,monthsOnMarket:3,singleFloor:true,floorCount:1,custom:false},
+    {id:"baold",name:"BÁO LAO ĐỘNG",address:"Xô Viết Nghệ Tĩnh",lat:16.0318891,lng:108.2140287,grade:"B",isCurrent:false,price:50336000,area:220,elevators:2,year:2025,monthsOnMarket:6,singleFloor:true,floorCount:1,custom:false},
+    {id:"shb",name:"SHB BUILDING",address:"06 Nguyễn Văn Linh, Hải Châu",lat:16.0613693,lng:108.2199779,grade:"B",isCurrent:false,price:205920000,area:600,elevators:2,year:null,monthsOnMarket:5,singleFloor:false,floorCount:2,custom:false}
 ];
 
 let selectedOfficeId = null;
@@ -628,20 +704,74 @@ function computeScore(office, stats, currentStats) {
     const maxMin = Math.min(...allStats.map(s => s.max));
     const maxMax = Math.max(...allStats.map(s => s.max));
     const normalize = (val, min, max) => max === min ? 1 : 1 - (val - min) / (max - min);
-    const avgScore = normalize(stats.avg, avgMin, avgMax) * 40;
-    const pctScore = (stats.pct3 / 100) * 20;
-    const medScore = normalize(stats.median, medMin, medMax) * 15;
+
+    // Distance average: 25%
+    const avgScore = normalize(stats.avg, avgMin, avgMax) * 25;
+
+    // % employees < 3km: 12%
+    const pctScore = (stats.pct3 / 100) * 12;
+
+    // Median distance: 8%
+    const medScore = normalize(stats.median, medMin, medMax) * 8;
+
+    // Impact (fewer negatively impacted = better): 10%
     let worse = 0;
     if (currentStats) {
+        const currentOffice = offices.find(o => o.isCurrent);
         for (let i = 0; i < employees.length; i++) {
-            const curDist = haversine(employees[i].lat, employees[i].lng, offices.find(o=>o.isCurrent).lat, offices.find(o=>o.isCurrent).lng);
-            const actualNew = haversine(employees[i].lat, employees[i].lng, office.lat, office.lng);
-            if (actualNew > curDist + 0.5) worse++;
+            const curDist = haversine(employees[i].lat, employees[i].lng, currentOffice.lat, currentOffice.lng);
+            const newDist = haversine(employees[i].lat, employees[i].lng, office.lat, office.lng);
+            if (newDist > curDist + 0.5) worse++;
         }
     }
-    const impactScore = (1 - worse / employees.length) * 15;
-    const maxScore = normalize(stats.max, maxMin, maxMax) * 10;
-    return Math.round(avgScore + pctScore + medScore + impactScore + maxScore);
+    const impactScore = (1 - worse / employees.length) * 10;
+
+    // Price: 20% (lower is better, normalized across all options with prices)
+    let priceScore = 10; // default middle if no price
+    const pricesAvailable = offices.filter(o => o.price > 0);
+    if (office.price && pricesAvailable.length > 1) {
+        const priceMin = Math.min(...pricesAvailable.map(o => o.price));
+        const priceMax = Math.max(...pricesAvailable.map(o => o.price));
+        priceScore = normalize(office.price, priceMin, priceMax) * 20;
+    } else if (office.price && pricesAvailable.length === 1) {
+        priceScore = 10;
+    }
+
+    // Year built: 8% (< 2 years old = bonus, > 10 years = penalty)
+    let yearScore = 4; // default middle
+    if (office.year) {
+        const age = new Date().getFullYear() - office.year;
+        if (age <= 2) yearScore = 8;
+        else if (age <= 5) yearScore = 6;
+        else if (age <= 10) yearScore = 4;
+        else yearScore = 2;
+    }
+
+    // Time on market: 7% (< 3 months = great, > 6 = concern, > 12 = red flag)
+    let marketScore = 3.5; // default middle
+    if (office.monthsOnMarket !== null && office.monthsOnMarket !== undefined) {
+        if (office.monthsOnMarket <= 3) marketScore = 7;
+        else if (office.monthsOnMarket <= 6) marketScore = 5;
+        else if (office.monthsOnMarket <= 12) marketScore = 3;
+        else marketScore = 1;
+    }
+
+    // Single floor layout: 5% (single floor 500-600m2 = bonus)
+    let floorScore = 2.5; // default middle
+    if (office.singleFloor !== undefined && office.singleFloor !== null) {
+        if (office.singleFloor && office.area >= 400 && office.area <= 700) {
+            floorScore = 5; // ideal single floor
+        } else if (office.singleFloor) {
+            floorScore = 4; // single floor but not ideal size
+        } else {
+            floorScore = 1; // multi-floor penalty
+        }
+    }
+
+    // Max distance: 5%
+    const maxScore = normalize(stats.max, maxMin, maxMax) * 5;
+
+    return Math.round(avgScore + pctScore + medScore + impactScore + priceScore + yearScore + marketScore + floorScore + maxScore);
 }
 
 // ============ CHANGE IMPACT ============
@@ -741,6 +871,39 @@ function renderAll() {
         if (o.id === bestOption?.id) badges += `<span class="badge badge-best">${t('badgeBest')}</span>`;
         if (o.grade) badges += `<span class="office-grade grade-${o.grade}">${o.grade}</span>`;
 
+        // Time on market badge
+        let marketBadge = '';
+        if (o.monthsOnMarket !== null && o.monthsOnMarket !== undefined) {
+            let mColor, mLabel;
+            if (o.monthsOnMarket <= 3) { mColor = '#166534'; mLabel = `${o.monthsOnMarket} ${t('monthsShort')}`; }
+            else if (o.monthsOnMarket <= 6) { mColor = '#854d0e'; mLabel = `${o.monthsOnMarket} ${t('monthsShort')}`; }
+            else if (o.monthsOnMarket <= 12) { mColor = '#9a3412'; mLabel = `${o.monthsOnMarket} ${t('monthsShort')}`; }
+            else { mColor = '#991b1b'; mLabel = `${o.monthsOnMarket} ${t('monthsShort')}`; }
+            marketBadge = `<span class="badge" style="background:${mColor};color:#fef2f2">⏱ ${mLabel}</span>`;
+        }
+
+        // Floor indicator
+        let floorBadge = '';
+        if (o.singleFloor !== undefined && o.singleFloor !== null) {
+            floorBadge = o.singleFloor
+                ? `<span class="badge" style="background:#1e3a5f;color:#93c5fd">▬ ${t('singleFloorLabel')}</span>`
+                : `<span class="badge" style="background:#3b1f4b;color:#d8b4fe">▤ ${t('multiFloorLabel')} ${o.floorCount ? '('+o.floorCount+')' : ''}</span>`;
+        }
+
+        // Price display
+        let priceBadge = '';
+        if (o.price) {
+            priceBadge = `<span class="badge" style="background:#1a1a2e;color:#a5b4fc;border:1px solid #334155">${(o.price/1000000).toFixed(0)}M VND</span>`;
+        }
+
+        // Source badge
+        let sourceBadge = '';
+        if (o.source) {
+            sourceBadge = `<span class="badge" style="background:#1e293b;color:#64748b;border:1px solid #475569;font-size:9px;">🌐 ${o.source}</span>`;
+        }
+
+        badges += marketBadge + floorBadge + priceBadge + sourceBadge;
+
         let impactHtml = '';
         if (!o.isCurrent) {
             const level = o.impact.worse > employees.length * 0.5 ? 'high' : o.impact.worse > employees.length * 0.3 ? 'medium' : 'low';
@@ -783,10 +946,12 @@ function renderAll() {
         tr.onclick = () => { selectOffice(o.id); switchTab('detail'); };
         const impLevel = o.impact.worse > employees.length*0.5 ? 'high' : o.impact.worse > employees.length*0.3 ? 'medium' : 'low';
         const impLabel = impLevel === 'high' ? `⚠ ${t('impactHigh')}` : impLevel === 'medium' ? `~ ${t('impactMedium')}` : `✓ ${t('impactLow')}`;
+        const priceStr = o.price ? `${(o.price/1000000).toFixed(0)}M` : '-';
         tr.innerHTML = `
             <td><span class="rank-badge ${rankClass}">${idx+1}</span></td>
             <td style="font-weight:600;color:#f8fafc;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${o.name}">${o.name}</td>
             <td style="color:${scoreColor(o.score)};font-weight:700">${o.score}</td>
+            <td>${priceStr}</td>
             <td>${o.stats.avg.toFixed(1)}</td>
             <td>${o.stats.pct3.toFixed(0)}%</td>
             <td class="impact-${impLevel}">${impLabel}</td>
@@ -862,6 +1027,10 @@ function selectOffice(id) {
     if (office.area) infoItems.push(`<tr><td>${t('area')}</td><td style="font-weight:700">${office.area} m²</td></tr>`);
     if (office.elevators) infoItems.push(`<tr><td>${t('elevators')}</td><td style="font-weight:700">${office.elevators}</td></tr>`);
     if (office.year) infoItems.push(`<tr><td>${t('yearBuilt')}</td><td style="font-weight:700">${office.year}</td></tr>`);
+    if (office.floorCount) infoItems.push(`<tr><td>${t('floorsLabel')}</td><td style="font-weight:700">${office.floorCount}</td></tr>`);
+    if (office.singleFloor !== null && office.singleFloor !== undefined) infoItems.push(`<tr><td>Layout</td><td style="font-weight:700">${office.singleFloor ? t('singleFloorLabel') : t('multiFloorLabel')}</td></tr>`);
+    if (office.monthsOnMarket !== null && office.monthsOnMarket !== undefined) infoItems.push(`<tr><td>${t('timeOnMarket')}</td><td style="font-weight:700">${office.monthsOnMarket} ${t('monthsShort')}</td></tr>`);
+    if (office.source) infoItems.push(`<tr><td>${t('scrapedSource')}</td><td style="font-weight:700"><a href="${office.sourceUrl || '#'}" target="_blank" style="color:#a5b4fc">${office.source}</a></td></tr>`);
     if (office.grade) infoItems.push(`<tr><td>${t('grade')}</td><td><span class="office-grade grade-${office.grade}">${office.grade}</span></td></tr>`);
     if (office.area && office.price) {
         infoItems.push(`<tr><td>${t('pricePerM2')}</td><td style="font-weight:700">${(office.price/office.area/1000).toFixed(0)}k VND</td></tr>`);
@@ -951,6 +1120,22 @@ function filterOffices(grade) {
     });
 }
 
+function filterByPrice(range) {
+    event.target.parentElement.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.querySelectorAll('.office-card').forEach(card => {
+        if (range === 'all') { card.style.display = ''; return; }
+        const office = offices.find(o => card.querySelector('.office-name')?.textContent.includes(o.name));
+        if (!office || !office.price) { card.style.display = range === 'all' ? '' : 'none'; return; }
+        const priceM = office.price / 1000000;
+        let show = false;
+        if (range === 'under100') show = priceM < 100;
+        else if (range === '100to200') show = priceM >= 100 && priceM <= 200;
+        else if (range === 'over200') show = priceM > 200;
+        card.style.display = show ? '' : 'none';
+    });
+}
+
 // ============ ADD/DELETE OFFICE ============
 function openAddModal() {
     document.getElementById('add-modal').classList.add('active');
@@ -969,12 +1154,17 @@ function addOffice() {
     const price = parseInt(document.getElementById('new-price').value) || null;
     const area = parseInt(document.getElementById('new-area').value) || null;
     const elevators = parseInt(document.getElementById('new-elevators').value) || null;
+    const year = parseInt(document.getElementById('new-year').value) || null;
+    const floorCount = parseInt(document.getElementById('new-floors').value) || null;
+    const monthsOnMarket = parseInt(document.getElementById('new-months-market').value) || null;
+    const singleFloor = document.getElementById('new-single-floor').checked;
     if (!name || isNaN(lat) || isNaN(lng)) { alert(t('fillRequired')); return; }
-    offices.push({ id: 'custom_' + Date.now(), name, address: address || t('addressNotSpecified'), lat, lng, grade, isCurrent: false, price, area, elevators, year: null, custom: true });
+    offices.push({ id: 'custom_' + Date.now(), name, address: address || t('addressNotSpecified'), lat, lng, grade, isCurrent: false, price, area, elevators, year, floorCount, monthsOnMarket, singleFloor, custom: true });
     closeAddModal();
     renderAll();
-    ['new-name','new-address','new-lat','new-lng','new-price','new-area','new-elevators'].forEach(id => document.getElementById(id).value = '');
+    ['new-name','new-address','new-lat','new-lng','new-price','new-area','new-elevators','new-year','new-floors','new-months-market'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('new-grade').value = '';
+    document.getElementById('new-single-floor').checked = false;
 }
 function deleteOffice(id) {
     if (!confirm(t('deleteConfirm'))) return;
@@ -983,9 +1173,95 @@ function deleteOffice(id) {
     renderAll();
 }
 
+// ============ IMPORT SCRAPED DATA ============
+function importScrapedData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) { alert('Invalid format: expected array'); return; }
+            let added = 0, skipped = 0;
+            data.forEach(item => {
+                // Dedup by address proximity (within 100m)
+                const isDuplicate = offices.some(o =>
+                    haversine(o.lat, o.lng, item.lat, item.lng) < 0.1
+                );
+                if (isDuplicate) { skipped++; return; }
+                offices.push({
+                    id: 'scraped_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    name: item.name || 'Unknown',
+                    address: item.address || t('addressNotSpecified'),
+                    lat: item.lat,
+                    lng: item.lng,
+                    grade: item.grade || '',
+                    isCurrent: false,
+                    price: item.price || null,
+                    area: item.area || null,
+                    elevators: item.elevators || null,
+                    year: item.year || null,
+                    monthsOnMarket: item.monthsOnMarket || null,
+                    singleFloor: item.singleFloor !== undefined ? item.singleFloor : null,
+                    floorCount: item.floors || null,
+                    custom: true,
+                    source: item.source || null,
+                    sourceUrl: item.sourceUrl || null
+                });
+                added++;
+            });
+            alert(`Imported: ${added} offices added, ${skipped} duplicates skipped`);
+            renderAll();
+        } catch(err) {
+            alert('Error parsing JSON: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// Auto-load scraped data on page load
+function autoLoadScrapedData() {
+    fetch('data/scraped_offices.json')
+        .then(r => { if (r.ok) return r.json(); throw new Error('not found'); })
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) return;
+            let added = 0;
+            data.forEach(item => {
+                const isDuplicate = offices.some(o =>
+                    haversine(o.lat, o.lng, item.lat, item.lng) < 0.1
+                );
+                if (isDuplicate) return;
+                offices.push({
+                    id: 'scraped_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    name: item.name || 'Unknown',
+                    address: item.address || '',
+                    lat: item.lat,
+                    lng: item.lng,
+                    grade: item.grade || '',
+                    isCurrent: false,
+                    price: item.price || null,
+                    area: item.area || null,
+                    elevators: item.elevators || null,
+                    year: item.year || null,
+                    monthsOnMarket: item.monthsOnMarket || null,
+                    singleFloor: item.singleFloor !== undefined ? item.singleFloor : null,
+                    floorCount: item.floors || null,
+                    custom: true,
+                    source: item.source || null,
+                    sourceUrl: item.sourceUrl || null
+                });
+                added++;
+            });
+            if (added > 0) renderAll();
+            console.log(`Auto-loaded ${added} scraped offices`);
+        })
+        .catch(() => { /* scraped data not available yet */ });
+}
+
 // ============ INIT ============
 initMap();
 renderAll();
+autoLoadScrapedData();
 </script>
 </body>
 </html>
