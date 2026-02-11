@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phân Tích Vị Trí Văn Phòng - Digital Unicorn Đà Nẵng</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; }
+
+        .header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 20px 30px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 16px; }
+        .header h1 { font-size: 22px; font-weight: 700; color: #f8fafc; }
+        .header .subtitle { font-size: 13px; color: #94a3b8; }
+        .logo { width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+
+        .layout { display: grid; grid-template-columns: 1fr 420px; height: calc(100vh - 76px); }
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; grid-template-rows: 50vh 1fr; }
+        }
+
+        #map { width: 100%; height: 100%; }
+
+        .sidebar { background: #1e293b; border-left: 1px solid #334155; overflow-y: auto; }
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-track { background: #1e293b; }
+        .sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        .section { padding: 16px 20px; border-bottom: 1px solid #334155; }
+        .section-title { font-size: 13px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; }
+        .stat-value { font-size: 24px; font-weight: 700; color: #f8fafc; }
+        .stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+        .stat-card.highlight { border-color: #6366f1; background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); }
+        .stat-card.highlight .stat-value { color: #a5b4fc; }
+
+        .office-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 14px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; position: relative; }
+        .office-card:hover { border-color: #6366f1; transform: translateY(-1px); }
+        .office-card.current { border-color: #22c55e; background: linear-gradient(135deg, #052e16 0%, #0f172a 100%); }
+        .office-card.best { border-color: #f59e0b; }
+        .office-card.selected { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3); }
+
+        .office-name { font-size: 14px; font-weight: 600; color: #f8fafc; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .office-address { font-size: 12px; color: #64748b; margin-bottom: 10px; }
+        .office-grade { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+        .grade-A { background: #166534; color: #86efac; }
+        .grade-B { background: #1e40af; color: #93c5fd; }
+        .grade-C { background: #713f12; color: #fcd34d; }
+
+        .badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        .badge-current { background: #166534; color: #86efac; }
+        .badge-best { background: #78350f; color: #fcd34d; }
+
+        .office-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .metric { text-align: center; }
+        .metric-value { font-size: 16px; font-weight: 700; }
+        .metric-label { font-size: 10px; color: #64748b; }
+        .metric-good { color: #4ade80; }
+        .metric-ok { color: #fbbf24; }
+        .metric-bad { color: #f87171; }
+
+        .impact-indicator { display: flex; align-items: center; gap: 4px; font-size: 11px; margin-top: 8px; }
+        .impact-low { color: #4ade80; }
+        .impact-medium { color: #fbbf24; }
+        .impact-high { color: #f87171; }
+
+        .add-office { background: transparent; border: 2px dashed #334155; border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; color: #64748b; font-size: 13px; transition: all 0.2s; width: 100%; }
+        .add-office:hover { border-color: #6366f1; color: #a5b4fc; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; width: 400px; max-width: 95vw; }
+        .modal h3 { font-size: 16px; margin-bottom: 16px; color: #f8fafc; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 13px; }
+        .form-group input:focus, .form-group select:focus { border-color: #6366f1; outline: none; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-secondary { background: #334155; color: #e2e8f0; }
+        .btn-secondary:hover { background: #475569; }
+        .btn-group { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+        .employee-dist-chart { margin-top: 12px; }
+        .dist-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .dist-bar-label { font-size: 11px; color: #94a3b8; width: 70px; text-align: right; flex-shrink: 0; }
+        .dist-bar-track { flex: 1; height: 16px; background: #0f172a; border-radius: 3px; overflow: hidden; position: relative; }
+        .dist-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s; display: flex; align-items: center; padding-left: 6px; }
+        .dist-bar-count { font-size: 10px; color: rgba(255,255,255,0.8); font-weight: 600; }
+
+        .comparison-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .comparison-table th { text-align: left; padding: 6px 8px; color: #94a3b8; font-weight: 600; border-bottom: 1px solid #334155; }
+        .comparison-table td { padding: 6px 8px; border-bottom: 1px solid #1e293b; }
+        .comparison-table tr:hover { background: rgba(99, 102, 241, 0.1); }
+
+        .rank-badge { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 50%; font-size: 11px; font-weight: 700; }
+        .rank-1 { background: #fbbf24; color: #1e293b; }
+        .rank-2 { background: #94a3b8; color: #1e293b; }
+        .rank-3 { background: #b45309; color: #fff; }
+        .rank-other { background: #334155; color: #94a3b8; }
+
+        .legend { display: flex; gap: 16px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        .tabs { display: flex; gap: 0; border-bottom: 1px solid #334155; }
+        .tab { padding: 10px 16px; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab:hover { color: #94a3b8; }
+        .tab.active { color: #a5b4fc; border-bottom-color: #6366f1; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .tooltip-custom { background: #1e293b !important; border: 1px solid #334155 !important; color: #e2e8f0 !important; border-radius: 8px !important; padding: 8px 12px !important; font-size: 12px !important; }
+
+        .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .filter-chip { padding: 4px 10px; font-size: 11px; border-radius: 20px; border: 1px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; transition: all 0.2s; }
+        .filter-chip:hover, .filter-chip.active { border-color: #6366f1; color: #a5b4fc; background: rgba(99, 102, 241, 0.1); }
+
+        .delete-btn { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; border: none; background: #334155; color: #94a3b8; font-size: 12px; cursor: pointer; display: none; align-items: center; justify-content: center; }
+        .office-card:hover .delete-btn.custom { display: flex; }
+
+        .lang-switch { margin-left: auto; display: flex; gap: 4px; }
+        .lang-btn { padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; transition: all 0.2s; }
+        .lang-btn:hover, .lang-btn.active { border-color: #6366f1; color: #a5b4fc; background: rgba(99, 102, 241, 0.1); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">🏢</div>
+    <div>
+        <h1 id="h-title">Phân Tích Vị Trí Văn Phòng</h1>
+        <div class="subtitle" id="h-subtitle">Digital Unicorn - Đà Nẵng | 83 nhân viên được phân tích</div>
+    </div>
+    <div class="lang-switch">
+        <button class="lang-btn active" onclick="setLang('vi')">VN</button>
+        <button class="lang-btn" onclick="setLang('fr')">FR</button>
+    </div>
+</div>
+
+<div class="layout">
+    <div id="map"></div>
+    <div class="sidebar">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('overview')" id="tab-btn-overview">Tổng quan</div>
+            <div class="tab" onclick="switchTab('ranking')" id="tab-btn-ranking">Xếp hạng</div>
+            <div class="tab" onclick="switchTab('detail')" id="tab-btn-detail">Chi tiết</div>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="section">
+                <div class="section-title" data-i18n="globalStats">Thống kê tổng quan</div>
+                <div class="stats-grid">
+                    <div class="stat-card highlight">
+                        <div class="stat-value" id="total-employees">83</div>
+                        <div class="stat-label" data-i18n="employeesMapped">Nhân viên đã định vị</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-offices">0</div>
+                        <div class="stat-label" data-i18n="officesAnalyzed">Văn phòng được phân tích</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avg-current">-</div>
+                        <div class="stat-label" data-i18n="avgDistCurrent">KC trung bình hiện tại (km)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avg-best">-</div>
+                        <div class="stat-label" data-i18n="bestAvgDist">KC trung bình tốt nhất</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n="legend">Chú giải</div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> <span data-i18n="employees">Nhân viên</span></div>
+                    <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> <span data-i18n="currentOffice">VP hiện tại</span></div>
+                    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> <span data-i18n="bestChoice">Lựa chọn tốt nhất</span></div>
+                    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> <span data-i18n="otherOptions">Các lựa chọn khác</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n="officeOptions">Các lựa chọn văn phòng</div>
+                <div class="filter-bar">
+                    <div class="filter-chip active" onclick="filterOffices('all')" data-i18n="all">Tất cả</div>
+                    <div class="filter-chip" onclick="filterOffices('A')">Hạng A</div>
+                    <div class="filter-chip" onclick="filterOffices('B')">Hạng B</div>
+                    <div class="filter-chip" onclick="filterOffices('C')">Hạng C</div>
+                </div>
+                <div id="office-list"></div>
+                <button class="add-office" onclick="openAddModal()" id="btn-add-office">+ Thêm văn phòng mới</button>
+            </div>
+        </div>
+
+        <!-- RANKING TAB -->
+        <div id="tab-ranking" class="tab-content">
+            <div class="section">
+                <div class="section-title" data-i18n="globalRanking">Xếp hạng tổng hợp</div>
+                <table class="comparison-table" id="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th data-i18n="office">Văn phòng</th>
+                            <th data-i18n="score">Điểm</th>
+                            <th data-i18n="avgDist">KC TB</th>
+                            <th>&lt;3km</th>
+                            <th data-i18n="impact">Ảnh hưởng</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-i18n="distDistribution">Phân bố khoảng cách - VP hiện tại</div>
+                <div id="current-dist-chart" class="employee-dist-chart"></div>
+            </div>
+        </div>
+
+        <!-- DETAIL TAB -->
+        <div id="tab-detail" class="tab-content">
+            <div class="section">
+                <p style="color:#64748b; font-size:13px; text-align:center; padding:20px;" id="detail-placeholder">Nhấp vào một văn phòng để xem chi tiết</p>
+                <div id="detail-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ADD OFFICE MODAL -->
+<div class="modal-overlay" id="add-modal">
+    <div class="modal">
+        <h3 id="modal-title">Thêm văn phòng mới</h3>
+        <div class="form-group">
+            <label id="lbl-name">Tên tòa nhà</label>
+            <input type="text" id="new-name" placeholder="VD: ABC Building">
+        </div>
+        <div class="form-group">
+            <label id="lbl-address">Địa chỉ</label>
+            <input type="text" id="new-address" placeholder="VD: 123 Nguyễn Văn Linh">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Vĩ độ (Latitude)</label>
+                <input type="number" id="new-lat" step="0.0001" placeholder="16.05">
+            </div>
+            <div class="form-group">
+                <label>Kinh độ (Longitude)</label>
+                <input type="number" id="new-lng" step="0.0001" placeholder="108.22">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Hạng tòa nhà</label>
+                <select id="new-grade">
+                    <option value="">-</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label id="lbl-rent">Giá thuê ước tính (VND/tháng)</label>
+                <input type="number" id="new-price" placeholder="100000000">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label id="lbl-area">Diện tích (m²)</label>
+                <input type="number" id="new-area" placeholder="400">
+            </div>
+            <div class="form-group">
+                <label id="lbl-elevators">Thang máy</label>
+                <input type="number" id="new-elevators" placeholder="2">
+            </div>
+        </div>
+        <p style="font-size:11px; color:#64748b; margin-top:8px;" id="modal-tip">Mẹo: Nhấp vào bản đồ để tự động điền tọa độ</p>
+        <div class="btn-group">
+            <button class="btn btn-secondary" onclick="closeAddModal()" id="btn-cancel">Hủy</button>
+            <button class="btn btn-primary" onclick="addOffice()" id="btn-add">Thêm</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ i18n ============
+let currentLang = 'vi';
+
+const translations = {
+    vi: {
+        title: "Phân Tích Vị Trí Văn Phòng",
+        subtitle: "Digital Unicorn - Đà Nẵng | 83 nhân viên được phân tích",
+        tabOverview: "Tổng quan",
+        tabRanking: "Xếp hạng",
+        tabDetail: "Chi tiết",
+        globalStats: "Thống kê tổng quan",
+        employeesMapped: "Nhân viên đã định vị",
+        officesAnalyzed: "Văn phòng được phân tích",
+        avgDistCurrent: "KC trung bình hiện tại (km)",
+        bestAvgDist: "KC trung bình tốt nhất",
+        legend: "Chú giải",
+        employees: "Nhân viên",
+        currentOffice: "VP hiện tại",
+        bestChoice: "Lựa chọn tốt nhất",
+        otherOptions: "Các lựa chọn khác",
+        officeOptions: "Các lựa chọn văn phòng",
+        all: "Tất cả",
+        globalRanking: "Xếp hạng tổng hợp",
+        office: "Văn phòng",
+        score: "Điểm",
+        avgDist: "KC TB",
+        impact: "Ảnh hưởng",
+        distDistribution: "Phân bố khoảng cách - VP hiện tại",
+        detailPlaceholder: "Nhấp vào một văn phòng để xem chi tiết",
+        addOfficeBtn: "+ Thêm văn phòng mới",
+        modalTitle: "Thêm văn phòng mới",
+        lblName: "Tên tòa nhà",
+        lblAddress: "Địa chỉ",
+        lblRent: "Giá thuê ước tính (VND/tháng)",
+        lblArea: "Diện tích (m²)",
+        lblElevators: "Thang máy",
+        modalTip: "Mẹo: Nhấp vào bản đồ để tự động điền tọa độ",
+        btnCancel: "Hủy",
+        btnAdd: "Thêm",
+        badgeCurrent: "Hiện tại",
+        badgeBest: "Đề xuất",
+        avgDistKm: "KC TB (km)",
+        scoreLabel: "Điểm /100",
+        lowImpact: "Ít ảnh hưởng",
+        mediumImpact: "Ảnh hưởng vừa",
+        highImpact: "Ảnh hưởng lớn",
+        employeesAffected: "nhân viên bị ảnh hưởng",
+        impactLow: "Thấp",
+        impactMedium: "Vừa",
+        impactHigh: "Cao",
+        // Detail
+        avgDistance: "Khoảng cách trung bình",
+        medianDistance: "Khoảng cách trung vị",
+        minDist: "KC gần nhất (km)",
+        maxDist: "KC xa nhất (km)",
+        avgDistLabel: "KC trung bình (km)",
+        medianDistLabel: "KC trung vị (km)",
+        coverage: "Phạm vi phục vụ",
+        comparisonTitle: "So sánh với VP hiện tại",
+        employeesLabel: "nhân viên",
+        shorterCommute: "Đi làm gần hơn",
+        sameCommute: "Tương tự",
+        longerCommute: "Đi làm xa hơn",
+        avgChange: "Thay đổi trung bình",
+        employeesUnder3km: "NV < 3km",
+        buildingInfo: "Thông tin tòa nhà",
+        monthlyRent: "Tiền thuê/tháng",
+        area: "Diện tích",
+        elevators: "Thang máy",
+        yearBuilt: "Năm xây dựng",
+        grade: "Hạng",
+        pricePerM2: "Giá / m²",
+        distDistLabel: "Phân bố khoảng cách",
+        deleteConfirm: "Xóa văn phòng này?",
+        fillRequired: "Vui lòng điền tên và tọa độ (nhấp vào bản đồ)",
+        addressNotSpecified: "Địa chỉ chưa xác định",
+        tooltipAvg: "KC TB",
+    },
+    fr: {
+        title: "Analyse de Localisation de Bureau",
+        subtitle: "Digital Unicorn - Da Nang | 83 employés analysés",
+        tabOverview: "Vue d'ensemble",
+        tabRanking: "Classement",
+        tabDetail: "Détail",
+        globalStats: "Statistiques globales",
+        employeesMapped: "Employés mappés",
+        officesAnalyzed: "Bureaux analysés",
+        avgDistCurrent: "Dist. moy. actuelle (km)",
+        bestAvgDist: "Meilleure dist. moy.",
+        legend: "Légende",
+        employees: "Employés",
+        currentOffice: "Bureau actuel",
+        bestChoice: "Meilleur choix",
+        otherOptions: "Autres options",
+        officeOptions: "Options de bureau",
+        all: "Tous",
+        globalRanking: "Classement global",
+        office: "Bureau",
+        score: "Score",
+        avgDist: "Dist. moy.",
+        impact: "Impact",
+        distDistribution: "Distribution des distances - Bureau actuel",
+        detailPlaceholder: "Cliquez sur un bureau pour voir les détails",
+        addOfficeBtn: "+ Ajouter un bureau",
+        modalTitle: "Ajouter un bureau",
+        lblName: "Nom du bâtiment",
+        lblAddress: "Adresse",
+        lblRent: "Loyer estimé (VND/mois)",
+        lblArea: "Surface (m²)",
+        lblElevators: "Ascenseurs",
+        modalTip: "Astuce: cliquez sur la carte pour remplir lat/lng automatiquement",
+        btnCancel: "Annuler",
+        btnAdd: "Ajouter",
+        badgeCurrent: "Actuel",
+        badgeBest: "Recommandé",
+        avgDistKm: "Dist. moy (km)",
+        scoreLabel: "Score /100",
+        lowImpact: "Faible perturbation",
+        mediumImpact: "Perturbation modérée",
+        highImpact: "Forte perturbation",
+        employeesAffected: "employés affectés",
+        impactLow: "Faible",
+        impactMedium: "Moyen",
+        impactHigh: "Fort",
+        avgDistance: "Distance moyenne",
+        medianDistance: "Distance médiane",
+        minDist: "Dist. min (km)",
+        maxDist: "Dist. max (km)",
+        avgDistLabel: "Dist. moyenne (km)",
+        medianDistLabel: "Dist. médiane (km)",
+        coverage: "Couverture",
+        comparisonTitle: "Comparaison vs Bureau Actuel",
+        employeesLabel: "employés",
+        shorterCommute: "Trajet plus court",
+        sameCommute: "Trajet similaire",
+        longerCommute: "Trajet plus long",
+        avgChange: "Changement moyen",
+        employeesUnder3km: "Employés < 3km",
+        buildingInfo: "Informations du bâtiment",
+        monthlyRent: "Loyer mensuel",
+        area: "Surface",
+        elevators: "Ascenseurs",
+        yearBuilt: "Année construction",
+        grade: "Grade",
+        pricePerM2: "Prix / m²",
+        distDistLabel: "Distribution des distances",
+        deleteConfirm: "Supprimer ce bureau ?",
+        fillRequired: "Veuillez remplir le nom et les coordonnées (cliquez sur la carte)",
+        addressNotSpecified: "Adresse non spécifiée",
+        tooltipAvg: "Dist. moy",
+    }
+};
+
+function t(key) { return translations[currentLang][key] || key; }
+
+function setLang(lang) {
+    currentLang = lang;
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.lang-btn[onclick="setLang('${lang}')"]`).classList.add('active');
+
+    // Update static elements
+    document.getElementById('h-title').textContent = t('title');
+    document.getElementById('h-subtitle').textContent = t('subtitle');
+    document.getElementById('tab-btn-overview').textContent = t('tabOverview');
+    document.getElementById('tab-btn-ranking').textContent = t('tabRanking');
+    document.getElementById('tab-btn-detail').textContent = t('tabDetail');
+    document.getElementById('btn-add-office').textContent = t('addOfficeBtn');
+    document.getElementById('modal-title').textContent = t('modalTitle');
+    document.getElementById('lbl-name').textContent = t('lblName');
+    document.getElementById('lbl-address').textContent = t('lblAddress');
+    document.getElementById('lbl-rent').textContent = t('lblRent');
+    document.getElementById('lbl-area').textContent = t('lblArea');
+    document.getElementById('lbl-elevators').textContent = t('lblElevators');
+    document.getElementById('modal-tip').textContent = t('modalTip');
+    document.getElementById('btn-cancel').textContent = t('btnCancel');
+    document.getElementById('btn-add').textContent = t('btnAdd');
+    document.getElementById('detail-placeholder').textContent = t('detailPlaceholder');
+
+    // Update data-i18n elements
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[currentLang][key]) el.textContent = translations[currentLang][key];
+    });
+
+    // Re-render dynamic content
+    renderAll();
+    if (selectedOfficeId) selectOffice(selectedOfficeId);
+}
+
+// ============ DATA ============
+const employees = [
+    {name:"280 Phạm Cự Lượng",lat:16.0555194,lng:108.2376017},
+    {name:"09 Lê Quý Đôn",lat:16.0554723,lng:108.2214637},
+    {name:"K448 Trưng Nữ Vương",lat:16.0508064,lng:108.2149198},
+    {name:"51 Tống Phước Phổ",lat:16.0463995,lng:108.222036},
+    {name:"Nguyễn Phước Nguyên",lat:16.0543902,lng:108.183477},
+    {name:"138 Mai Thúc Lân",lat:16.0483578,lng:108.2433234},
+    {name:"40 Nguyễn Thiện Kế",lat:16.0607672,lng:108.2380878},
+    {name:"178 Minh Mạng",lat:16.0168776,lng:108.255508},
+    {name:"36 Lê Đình Thám",lat:16.0499365,lng:108.2161953},
+    {name:"288 Đ. Đoàn Khuê",lat:16.0236681,lng:108.2449521},
+    {name:"An Thượng 34",lat:16.0497714,lng:108.2451734},
+    {name:"Tổ 7 thôn Dương Sơn",lat:15.9690248,lng:108.1881983},
+    {name:"66 Đỗ Anh Hàn",lat:16.0820386,lng:108.234664},
+    {name:"53 Cù Chính Lan",lat:16.0650078,lng:108.1880683},
+    {name:"14 Triệu Nữ Vương",lat:16.067334,lng:108.2157586},
+    {name:"51 Đường Thành Vinh 1",lat:16.1054378,lng:108.2521156},
+    {name:"Trần Cao Vân",lat:16.0711585,lng:108.1966584},
+    {name:"26 An Cư 2",lat:16.0678108,lng:108.2420284},
+    {name:"Hòa Quý",lat:15.982958,lng:108.2334189},
+    {name:"231 Nguyễn Công Trứ",lat:16.065845,lng:108.239339},
+    {name:"5 Đa Mặn Đông 1",lat:16.0264218,lng:108.2498799},
+    {name:"X6R7+QJ4",lat:15.9918686,lng:108.2140164},
+    {name:"Nhà VH thôn Đông Hòa",lat:15.9968106,lng:108.1940681},
+    {name:"44 Phan Đăng Lưu",lat:16.0373707,lng:108.2205651},
+    {name:"19 Lê Đình Thám",lat:16.0505274,lng:108.2162906},
+    {name:"320 Huỳnh Ngọc Huệ",lat:16.0543287,lng:108.1880612},
+    {name:"814/33 Trần Cao Vân",lat:16.0706401,lng:108.1837849},
+    {name:"63/2 Đ. Nguyễn Đình Chiểu",lat:16.0283545,lng:108.2445168},
+    {name:"41 Nguyễn Thiện Kế",lat:16.0601944,lng:108.2386581},
+    {name:"666 Trưng Nữ Vương",lat:16.0422985,lng:108.2059544},
+    {name:"3627+3WH",lat:16.0501965,lng:108.2148504},
+    {name:"78 Nguyễn Xuân Khoát",lat:16.0703511,lng:108.2359156},
+    {name:"Nhà VH Thôn Hưởng Phước",lat:16.0772323,lng:108.0988132},
+    {name:"19 Phong Bắc 20",lat:16.009496,lng:108.1938274},
+    {name:"Quang Châu",lat:15.977101,lng:108.1977188},
+    {name:"64 Thanh Nghị",lat:16.0663381,lng:108.1587325},
+    {name:"FPT Plaza 2",lat:15.9827071,lng:108.2600255},
+    {name:"64 Cao Hồng Lãnh",lat:15.9867087,lng:108.2358959},
+    {name:"44 Đ. An Mỹ",lat:16.0632288,lng:108.2310634},
+    {name:"124 Lê Chân",lat:16.0859401,lng:108.2336248},
+    {name:"24 Trưng Nữ Vương",lat:16.0602721,lng:108.2225629},
+    {name:"365R+V9G",lat:16.0597428,lng:108.2407752},
+    {name:"19 Chơn Tâm 4",lat:16.0638925,lng:108.1610359},
+    {name:"16 Cồn Dầu 16",lat:16.0196802,lng:108.2230342},
+    {name:"Mỹ An",lat:16.0476897,lng:108.2466488},
+    {name:"41 Đặng Thai Mai",lat:16.0607741,lng:108.2107731},
+    {name:"165 Nguyễn Kim",lat:15.9922016,lng:108.2101939},
+    {name:"Quán Dì Ù",lat:16.0851865,lng:108.1558337},
+    {name:"04 Tân An 1",lat:16.037648,lng:108.2118052},
+    {name:"Cổ Mân 9",lat:16.0914694,lng:108.2405164},
+    {name:"Chung cư Hòa Khánh",lat:16.0746563,lng:108.1348629},
+    {name:"02 Hòa Minh 10",lat:16.0817337,lng:108.1580803},
+    {name:"100 Nguyễn Lương Bằng",lat:16.0752655,lng:108.1492159},
+    {name:"Vivian Hotel",lat:16.0773009,lng:108.2427593},
+    {name:"101 Dương Trí Trạch",lat:16.0727493,lng:108.2404047},
+    {name:"03 Hà Văn Trí",lat:16.0280512,lng:108.2109067},
+    {name:"72 Hải Phòng",lat:16.0724801,lng:108.2183001},
+    {name:"Đinh Thị Vân",lat:16.0435115,lng:108.1878526},
+    {name:"18 Nại Hiên Đông 9",lat:16.092113,lng:108.2309409},
+    {name:"35 Đào Duy Anh",lat:16.058896,lng:108.2102866},
+    {name:"12 Mạc Đĩnh Chi",lat:16.0656548,lng:108.2158003},
+    {name:"142 Âu Cơ",lat:16.0710647,lng:108.1467448},
+    {name:"Bờ Đằm 6",lat:15.9707111,lng:108.2126521},
+    {name:"05 Bình Hòa 2",lat:16.0258385,lng:108.2134604},
+    {name:"Phố Thạc Gián",lat:16.0597146,lng:108.2072241},
+    {name:"Điện An",lat:15.8849763,lng:108.231763},
+    {name:"18 Đoàn Thị Điểm",lat:16.0666084,lng:108.2170608},
+    {name:"Cty XD Việt Vũ",lat:16.0291743,lng:108.2250125},
+    {name:"Nguyễn Xuân Nhĩ",lat:16.0311443,lng:108.2265785},
+    {name:"32 Đ. Gò Nảy 7",lat:16.0684983,lng:108.1655779},
+    {name:"Kiệt 1 Nam Trân",lat:16.0579621,lng:108.1720662},
+    {name:"60 Lưu Trùng Đ.",lat:15.9866956,lng:108.2368847},
+    {name:"06 Đ. Tô Vĩnh Diện",lat:16.0521922,lng:108.1768355},
+    {name:"57 Mạc Thiên Tích",lat:16.026043,lng:108.2395359},
+    {name:"Lý Nhật Quang/22",lat:16.096573,lng:108.2297521},
+    {name:"6 Chơn Tâm 4",lat:16.0639961,lng:108.1612463},
+    {name:"59 Loseby",lat:16.0738016,lng:108.2416211},
+    {name:"168 Minh Mạng",lat:16.0071857,lng:108.2407986},
+    {name:"5 Tô Hiến Thành",lat:16.0641074,lng:108.2416558},
+    {name:"124 Nguyễn Thị Định",lat:16.0814079,lng:108.2308485},
+    {name:"26 Ông Ích Khiêm",lat:16.0781524,lng:108.2118695},
+    {name:"74 Quang Trung",lat:16.0748524,lng:108.2193571},
+    {name:"337 Nguyễn Hồng Ánh",lat:15.9965627,lng:108.1968771}
+];
+
+let offices = [
+    {id:"current",name:"VP Hiện tại (96 Hồ Nghinh)",address:"96 Hồ Nghinh, An Hải, Sơn Trà",lat:16.0680,lng:108.2430,grade:"",isCurrent:true,price:null,area:null,elevators:null,year:null,custom:false},
+    {id:"nhumai",name:"NHƯ MAI BUILDING",address:"328 Trần Hưng Đạo",lat:16.0607904,lng:108.2303821,grade:"C",isCurrent:false,price:132000000,area:400,elevators:1,year:2022,custom:false},
+    {id:"x2",name:"X2 OFFICE",address:"666 Ngô Quyền",lat:16.0862718,lng:108.240397,grade:"C",isCurrent:false,price:40000000,area:205,elevators:1,year:2017,custom:false},
+    {id:"nicholas",name:"NICHOLAS OFFICE",address:"482 Nguyễn Hữu Thọ",lat:16.0191879,lng:108.2115565,grade:"B",isCurrent:false,price:200000000,area:800,elevators:2,year:null,custom:false},
+    {id:"vnpt",name:"VNPT 2/9",address:"344-346 đường 2/9",lat:16.042017,lng:108.2229055,grade:"B",isCurrent:false,price:128000000,area:470,elevators:2,year:2012,custom:false},
+    {id:"pdl125",name:"125 PHAN ĐĂNG LƯU",address:"125 Phan Đăng Lưu, Hải Châu",lat:16.0374486,lng:108.2196587,grade:"C",isCurrent:false,price:183040000,area:320,elevators:2,year:2024,custom:false},
+    {id:"div",name:"DIV (Bảo Hiểm Tiền Gửi)",address:"Lý Thánh Tông, Thanh Khê",lat:16.0585,lng:108.1970,grade:"B",isCurrent:false,price:102000000,area:600,elevators:4,year:2025,custom:false},
+    {id:"baold",name:"BÁO LAO ĐỘNG",address:"Xô Viết Nghệ Tĩnh",lat:16.0318891,lng:108.2140287,grade:"B",isCurrent:false,price:50336000,area:220,elevators:2,year:2025,custom:false},
+    {id:"shb",name:"SHB BUILDING",address:"06 Nguyễn Văn Linh, Hải Châu",lat:16.0613693,lng:108.2199779,grade:"B",isCurrent:false,price:205920000,area:600,elevators:2,year:null,custom:false}
+];
+
+let selectedOfficeId = null;
+let mapClickMode = false;
+let map, employeeLayer, officeMarkers = {};
+
+// ============ HAVERSINE ============
+function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ============ COMPUTE STATS ============
+function computeStats(office) {
+    const distances = employees.map(e => haversine(e.lat, e.lng, office.lat, office.lng));
+    distances.sort((a,b) => a - b);
+    const avg = distances.reduce((s,d) => s+d, 0) / distances.length;
+    const median = distances.length % 2 === 0 ? (distances[distances.length/2-1] + distances[distances.length/2]) / 2 : distances[Math.floor(distances.length/2)];
+    const max = distances[distances.length-1];
+    const min = distances[0];
+    const within1 = distances.filter(d => d <= 1).length;
+    const within2 = distances.filter(d => d <= 2).length;
+    const within3 = distances.filter(d => d <= 3).length;
+    const within5 = distances.filter(d => d <= 5).length;
+    const within10 = distances.filter(d => d <= 10).length;
+    const pct3 = (within3 / distances.length * 100);
+    const pct5 = (within5 / distances.length * 100);
+    const buckets = [
+        { label: "0-1 km", count: within1, color: "#22c55e" },
+        { label: "1-2 km", count: within2 - within1, color: "#4ade80" },
+        { label: "2-3 km", count: within3 - within2, color: "#a3e635" },
+        { label: "3-5 km", count: within5 - within3, color: "#fbbf24" },
+        { label: "5-10 km", count: within10 - within5, color: "#f97316" },
+        { label: "10+ km", count: distances.length - within10, color: "#ef4444" },
+    ];
+    return { distances, avg, median, max, min, within1, within2, within3, within5, within10, pct3, pct5, buckets };
+}
+
+// ============ SCORING ============
+function computeScore(office, stats, currentStats) {
+    const allStats = offices.map(o => computeStats(o));
+    const avgMin = Math.min(...allStats.map(s => s.avg));
+    const avgMax = Math.max(...allStats.map(s => s.avg));
+    const medMin = Math.min(...allStats.map(s => s.median));
+    const medMax = Math.max(...allStats.map(s => s.median));
+    const maxMin = Math.min(...allStats.map(s => s.max));
+    const maxMax = Math.max(...allStats.map(s => s.max));
+    const normalize = (val, min, max) => max === min ? 1 : 1 - (val - min) / (max - min);
+    const avgScore = normalize(stats.avg, avgMin, avgMax) * 40;
+    const pctScore = (stats.pct3 / 100) * 20;
+    const medScore = normalize(stats.median, medMin, medMax) * 15;
+    let worse = 0;
+    if (currentStats) {
+        for (let i = 0; i < employees.length; i++) {
+            const curDist = haversine(employees[i].lat, employees[i].lng, offices.find(o=>o.isCurrent).lat, offices.find(o=>o.isCurrent).lng);
+            const actualNew = haversine(employees[i].lat, employees[i].lng, office.lat, office.lng);
+            if (actualNew > curDist + 0.5) worse++;
+        }
+    }
+    const impactScore = (1 - worse / employees.length) * 15;
+    const maxScore = normalize(stats.max, maxMin, maxMax) * 10;
+    return Math.round(avgScore + pctScore + medScore + impactScore + maxScore);
+}
+
+// ============ CHANGE IMPACT ============
+function computeImpact(office) {
+    const current = offices.find(o => o.isCurrent);
+    if (!current || office.isCurrent) return { better: 0, same: 0, worse: 0, avgChange: 0 };
+    let better = 0, same = 0, worse = 0, totalChange = 0;
+    employees.forEach(e => {
+        const curDist = haversine(e.lat, e.lng, current.lat, current.lng);
+        const newDist = haversine(e.lat, e.lng, office.lat, office.lng);
+        const diff = newDist - curDist;
+        totalChange += diff;
+        if (diff < -0.3) better++;
+        else if (diff > 0.3) worse++;
+        else same++;
+    });
+    return { better, same, worse, avgChange: totalChange / employees.length };
+}
+
+// ============ MAP INIT ============
+function initMap() {
+    map = L.map('map').setView([16.055, 108.22], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    employeeLayer = L.layerGroup().addTo(map);
+    employees.forEach(e => {
+        const marker = L.circleMarker([e.lat, e.lng], {
+            radius: 5, fillColor: '#6366f1', color: '#4338ca', weight: 1, fillOpacity: 0.7
+        }).addTo(employeeLayer);
+        marker.bindTooltip(e.name, { className: 'tooltip-custom' });
+    });
+    map.on('click', function(e) {
+        if (mapClickMode) {
+            document.getElementById('new-lat').value = e.latlng.lat.toFixed(6);
+            document.getElementById('new-lng').value = e.latlng.lng.toFixed(6);
+        }
+    });
+    renderOfficeMarkers();
+}
+
+function renderOfficeMarkers() {
+    Object.values(officeMarkers).forEach(m => map.removeLayer(m));
+    officeMarkers = {};
+    const currentStats = computeStats(offices.find(o => o.isCurrent));
+    const scored = offices.map(o => ({ ...o, stats: computeStats(o) }));
+    scored.forEach(o => { o.score = computeScore(o, o.stats, currentStats); });
+    const bestId = scored.filter(o => !o.isCurrent).sort((a,b) => b.score - a.score)[0]?.id;
+    offices.forEach(o => {
+        let color = '#ef4444', size = 8, zIndex = 100;
+        if (o.isCurrent) { color = '#22c55e'; size = 10; zIndex = 200; }
+        if (o.id === bestId) { color = '#f59e0b'; size = 10; zIndex = 200; }
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="width:${size*2}px;height:${size*2}px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+            iconSize: [size*2, size*2], iconAnchor: [size, size]
+        });
+        const marker = L.marker([o.lat, o.lng], { icon, zIndexOffset: zIndex }).addTo(map);
+        const stats = computeStats(o);
+        marker.bindTooltip(`<b>${o.name}</b><br>${t('tooltipAvg')}: ${stats.avg.toFixed(1)} km<br>${stats.pct3.toFixed(0)}% < 3km`, { className: 'tooltip-custom' });
+        marker.on('click', () => selectOffice(o.id));
+        officeMarkers[o.id] = marker;
+    });
+}
+
+// ============ RENDER UI ============
+function renderAll() {
+    const currentOffice = offices.find(o => o.isCurrent);
+    const currentStats = currentOffice ? computeStats(currentOffice) : null;
+    const scored = offices.map(o => {
+        const stats = computeStats(o);
+        const score = computeScore(o, stats, currentStats);
+        const impact = computeImpact(o);
+        return { ...o, stats, score, impact };
+    });
+    const bestOption = scored.filter(o => !o.isCurrent).sort((a,b) => b.score - a.score)[0];
+
+    document.getElementById('total-employees').textContent = employees.length;
+    document.getElementById('total-offices').textContent = offices.length;
+    if (currentStats) document.getElementById('avg-current').textContent = currentStats.avg.toFixed(1);
+    if (bestOption) document.getElementById('avg-best').textContent = bestOption.stats.avg.toFixed(1);
+
+    const listEl = document.getElementById('office-list');
+    listEl.innerHTML = '';
+    scored.sort((a,b) => {
+        if (a.isCurrent) return -1;
+        if (b.isCurrent) return 1;
+        return b.score - a.score;
+    }).forEach(o => {
+        const card = document.createElement('div');
+        card.className = `office-card ${o.isCurrent ? 'current' : ''} ${o.id === bestOption?.id ? 'best' : ''} ${o.id === selectedOfficeId ? 'selected' : ''}`;
+        card.setAttribute('data-grade', o.grade || '');
+        card.onclick = () => selectOffice(o.id);
+
+        let badges = '';
+        if (o.isCurrent) badges += `<span class="badge badge-current">${t('badgeCurrent')}</span>`;
+        if (o.id === bestOption?.id) badges += `<span class="badge badge-best">${t('badgeBest')}</span>`;
+        if (o.grade) badges += `<span class="office-grade grade-${o.grade}">${o.grade}</span>`;
+
+        let impactHtml = '';
+        if (!o.isCurrent) {
+            const level = o.impact.worse > employees.length * 0.5 ? 'high' : o.impact.worse > employees.length * 0.3 ? 'medium' : 'low';
+            const label = level === 'low' ? t('lowImpact') : level === 'medium' ? t('mediumImpact') : t('highImpact');
+            const icon = level === 'low' ? '✓' : level === 'medium' ? '⚠' : '✕';
+            impactHtml = `<div class="impact-indicator impact-${level}">${icon} ${label} (${o.impact.worse} ${t('employeesAffected')})</div>`;
+        }
+        const deleteBtn = o.custom ? `<button class="delete-btn custom" onclick="event.stopPropagation(); deleteOffice('${o.id}')">&times;</button>` : '';
+        card.innerHTML = `
+            ${deleteBtn}
+            <div class="office-name">${o.name} ${badges}</div>
+            <div class="office-address">${o.address}</div>
+            <div class="office-metrics">
+                <div class="metric">
+                    <div class="metric-value ${o.stats.avg < 4 ? 'metric-good' : o.stats.avg < 6 ? 'metric-ok' : 'metric-bad'}">${o.stats.avg.toFixed(1)}</div>
+                    <div class="metric-label">${t('avgDistKm')}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value ${o.stats.pct3 > 50 ? 'metric-good' : o.stats.pct3 > 30 ? 'metric-ok' : 'metric-bad'}">${o.stats.pct3.toFixed(0)}%</div>
+                    <div class="metric-label">&lt; 3 km</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="color: ${scoreColor(o.score)}">${o.score}</div>
+                    <div class="metric-label">${t('scoreLabel')}</div>
+                </div>
+            </div>
+            ${impactHtml}
+        `;
+        listEl.appendChild(card);
+    });
+
+    // Ranking
+    const tbody = document.querySelector('#ranking-table tbody');
+    tbody.innerHTML = '';
+    const ranked = scored.filter(o => !o.isCurrent).sort((a,b) => b.score - a.score);
+    ranked.forEach((o, idx) => {
+        const rankClass = idx < 3 ? `rank-${idx+1}` : 'rank-other';
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.onclick = () => { selectOffice(o.id); switchTab('detail'); };
+        const impLevel = o.impact.worse > employees.length*0.5 ? 'high' : o.impact.worse > employees.length*0.3 ? 'medium' : 'low';
+        const impLabel = impLevel === 'high' ? `⚠ ${t('impactHigh')}` : impLevel === 'medium' ? `~ ${t('impactMedium')}` : `✓ ${t('impactLow')}`;
+        tr.innerHTML = `
+            <td><span class="rank-badge ${rankClass}">${idx+1}</span></td>
+            <td style="font-weight:600;color:#f8fafc;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${o.name}">${o.name}</td>
+            <td style="color:${scoreColor(o.score)};font-weight:700">${o.score}</td>
+            <td>${o.stats.avg.toFixed(1)}</td>
+            <td>${o.stats.pct3.toFixed(0)}%</td>
+            <td class="impact-${impLevel}">${impLabel}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (currentStats) renderDistChart('current-dist-chart', currentStats.buckets);
+    renderOfficeMarkers();
+}
+
+function scoreColor(score) {
+    if (score >= 70) return '#4ade80';
+    if (score >= 50) return '#fbbf24';
+    return '#f87171';
+}
+
+function renderDistChart(containerId, buckets) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const maxCount = Math.max(...buckets.map(b => b.count), 1);
+    el.innerHTML = buckets.map(b => `
+        <div class="dist-bar-row">
+            <div class="dist-bar-label">${b.label}</div>
+            <div class="dist-bar-track">
+                <div class="dist-bar-fill" style="width:${(b.count/maxCount)*100}%;background:${b.color}">
+                    <span class="dist-bar-count">${b.count}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ============ SELECTION & DETAIL ============
+function selectOffice(id) {
+    selectedOfficeId = id;
+    const office = offices.find(o => o.id === id);
+    if (!office) return;
+    map.setView([office.lat, office.lng], 13);
+    document.querySelectorAll('.office-card').forEach(c => c.classList.remove('selected'));
+
+    const stats = computeStats(office);
+    const impact = computeImpact(office);
+    const currentOffice = offices.find(o => o.isCurrent);
+    const currentStats = currentOffice ? computeStats(currentOffice) : null;
+    const score = computeScore(office, stats, currentStats);
+    const detailEl = document.getElementById('detail-content');
+    document.getElementById('detail-placeholder').style.display = 'none';
+
+    let comparisonHtml = '';
+    if (!office.isCurrent && currentStats) {
+        const avgDiff = stats.avg - currentStats.avg;
+        const pctDiff = stats.pct3 - currentStats.pct3;
+        comparisonHtml = `
+            <div style="margin-top:16px;">
+                <div class="section-title">${t('comparisonTitle')}</div>
+                <table class="comparison-table">
+                    <tr><td>${t('avgDistance')}</td><td style="font-weight:700;color:${avgDiff<=0?'#4ade80':'#f87171'}">${avgDiff>0?'+':''}${avgDiff.toFixed(2)} km</td></tr>
+                    <tr><td>${t('medianDistance')}</td><td style="font-weight:700;color:${stats.median<=currentStats.median?'#4ade80':'#f87171'}">${(stats.median - currentStats.median).toFixed(2)} km</td></tr>
+                    <tr><td>${t('employeesUnder3km')}</td><td style="font-weight:700;color:${pctDiff>=0?'#4ade80':'#f87171'}">${pctDiff>0?'+':''}${pctDiff.toFixed(1)}%</td></tr>
+                    <tr><td>${t('shorterCommute')}</td><td style="color:#4ade80;font-weight:700">${impact.better} ${t('employeesLabel')}</td></tr>
+                    <tr><td>${t('sameCommute')}</td><td style="color:#fbbf24;font-weight:700">${impact.same} ${t('employeesLabel')}</td></tr>
+                    <tr><td>${t('longerCommute')}</td><td style="color:#f87171;font-weight:700">${impact.worse} ${t('employeesLabel')}</td></tr>
+                    <tr><td>${t('avgChange')}</td><td style="font-weight:700;color:${impact.avgChange<=0?'#4ade80':'#f87171'}">${impact.avgChange>0?'+':''}${impact.avgChange.toFixed(2)} km</td></tr>
+                </table>
+            </div>
+        `;
+    }
+
+    let infoHtml = '';
+    const infoItems = [];
+    if (office.price) infoItems.push(`<tr><td>${t('monthlyRent')}</td><td style="font-weight:700">${(office.price/1000000).toFixed(0)}M VND</td></tr>`);
+    if (office.area) infoItems.push(`<tr><td>${t('area')}</td><td style="font-weight:700">${office.area} m²</td></tr>`);
+    if (office.elevators) infoItems.push(`<tr><td>${t('elevators')}</td><td style="font-weight:700">${office.elevators}</td></tr>`);
+    if (office.year) infoItems.push(`<tr><td>${t('yearBuilt')}</td><td style="font-weight:700">${office.year}</td></tr>`);
+    if (office.grade) infoItems.push(`<tr><td>${t('grade')}</td><td><span class="office-grade grade-${office.grade}">${office.grade}</span></td></tr>`);
+    if (office.area && office.price) {
+        infoItems.push(`<tr><td>${t('pricePerM2')}</td><td style="font-weight:700">${(office.price/office.area/1000).toFixed(0)}k VND</td></tr>`);
+    }
+    if (infoItems.length) {
+        infoHtml = `<div style="margin-top:16px;"><div class="section-title">${t('buildingInfo')}</div><table class="comparison-table">${infoItems.join('')}</table></div>`;
+    }
+
+    detailEl.innerHTML = `
+        <div style="text-align:center;margin-bottom:16px;">
+            <h3 style="font-size:16px;color:#f8fafc;margin-bottom:4px;">${office.name}</h3>
+            <div style="font-size:12px;color:#64748b;">${office.address}</div>
+            <div style="font-size:48px;font-weight:800;margin:12px 0;color:${scoreColor(score)}">${score}<span style="font-size:16px;color:#64748b">/100</span></div>
+        </div>
+        <div class="stats-grid" style="margin-bottom:16px;">
+            <div class="stat-card"><div class="stat-value" style="font-size:18px">${stats.avg.toFixed(2)}</div><div class="stat-label">${t('avgDistLabel')}</div></div>
+            <div class="stat-card"><div class="stat-value" style="font-size:18px">${stats.median.toFixed(2)}</div><div class="stat-label">${t('medianDistLabel')}</div></div>
+            <div class="stat-card"><div class="stat-value" style="font-size:18px">${stats.min.toFixed(2)}</div><div class="stat-label">${t('minDist')}</div></div>
+            <div class="stat-card"><div class="stat-value" style="font-size:18px">${stats.max.toFixed(2)}</div><div class="stat-label">${t('maxDist')}</div></div>
+        </div>
+        <div class="section-title">${t('distDistLabel')}</div>
+        <div id="detail-dist-chart" class="employee-dist-chart"></div>
+        <div style="margin-top:16px;">
+            <div class="section-title">${t('coverage')}</div>
+            <table class="comparison-table">
+                <tr><td>&lt; 1 km</td><td style="font-weight:700">${stats.within1} ${t('employeesLabel')} (${(stats.within1/employees.length*100).toFixed(0)}%)</td></tr>
+                <tr><td>&lt; 2 km</td><td style="font-weight:700">${stats.within2} ${t('employeesLabel')} (${(stats.within2/employees.length*100).toFixed(0)}%)</td></tr>
+                <tr><td>&lt; 3 km</td><td style="font-weight:700">${stats.within3} ${t('employeesLabel')} (${(stats.within3/employees.length*100).toFixed(0)}%)</td></tr>
+                <tr><td>&lt; 5 km</td><td style="font-weight:700">${stats.within5} ${t('employeesLabel')} (${(stats.within5/employees.length*100).toFixed(0)}%)</td></tr>
+                <tr><td>&lt; 10 km</td><td style="font-weight:700">${stats.within10} ${t('employeesLabel')} (${(stats.within10/employees.length*100).toFixed(0)}%)</td></tr>
+            </table>
+        </div>
+        ${comparisonHtml}
+        ${infoHtml}
+    `;
+
+    setTimeout(() => {
+        const chartEl = document.getElementById('detail-dist-chart');
+        if (chartEl) {
+            const maxCount = Math.max(...stats.buckets.map(b => b.count), 1);
+            chartEl.innerHTML = stats.buckets.map(b => `
+                <div class="dist-bar-row">
+                    <div class="dist-bar-label">${b.label}</div>
+                    <div class="dist-bar-track">
+                        <div class="dist-bar-fill" style="width:${(b.count/maxCount)*100}%;background:${b.color}">
+                            <span class="dist-bar-count">${b.count}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }, 10);
+
+    drawLines(office);
+    switchTab('detail');
+}
+
+let lineLayer = null;
+function drawLines(office) {
+    if (lineLayer) map.removeLayer(lineLayer);
+    lineLayer = L.layerGroup().addTo(map);
+    employees.forEach(e => {
+        const dist = haversine(e.lat, e.lng, office.lat, office.lng);
+        let color = '#22c55e';
+        if (dist > 5) color = '#f97316';
+        else if (dist > 3) color = '#fbbf24';
+        else if (dist > 2) color = '#a3e635';
+        L.polyline([[office.lat, office.lng], [e.lat, e.lng]], { color, weight: 1, opacity: 0.3 }).addTo(lineLayer);
+    });
+}
+
+// ============ TABS ============
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#tab-${tabName}`).classList.add('active');
+    document.getElementById(`tab-btn-${tabName}`).classList.add('active');
+}
+
+// ============ FILTERS ============
+function filterOffices(grade) {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.querySelectorAll('.office-card').forEach(card => {
+        if (grade === 'all') card.style.display = '';
+        else card.style.display = card.getAttribute('data-grade') === grade ? '' : 'none';
+    });
+}
+
+// ============ ADD/DELETE OFFICE ============
+function openAddModal() {
+    document.getElementById('add-modal').classList.add('active');
+    mapClickMode = true;
+}
+function closeAddModal() {
+    document.getElementById('add-modal').classList.remove('active');
+    mapClickMode = false;
+}
+function addOffice() {
+    const name = document.getElementById('new-name').value.trim();
+    const address = document.getElementById('new-address').value.trim();
+    const lat = parseFloat(document.getElementById('new-lat').value);
+    const lng = parseFloat(document.getElementById('new-lng').value);
+    const grade = document.getElementById('new-grade').value;
+    const price = parseInt(document.getElementById('new-price').value) || null;
+    const area = parseInt(document.getElementById('new-area').value) || null;
+    const elevators = parseInt(document.getElementById('new-elevators').value) || null;
+    if (!name || isNaN(lat) || isNaN(lng)) { alert(t('fillRequired')); return; }
+    offices.push({ id: 'custom_' + Date.now(), name, address: address || t('addressNotSpecified'), lat, lng, grade, isCurrent: false, price, area, elevators, year: null, custom: true });
+    closeAddModal();
+    renderAll();
+    ['new-name','new-address','new-lat','new-lng','new-price','new-area','new-elevators'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('new-grade').value = '';
+}
+function deleteOffice(id) {
+    if (!confirm(t('deleteConfirm'))) return;
+    offices = offices.filter(o => o.id !== id);
+    if (selectedOfficeId === id) selectedOfficeId = null;
+    renderAll();
+}
+
+// ============ INIT ============
+initMap();
+renderAll();
+</script>
+</body>
+</html>
